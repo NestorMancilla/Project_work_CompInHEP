@@ -22,7 +22,6 @@ def get_xsec(file_path, is_signal):
         # First try to get the value as a TParameter (works for both signal and background)
         xsec = xsec_param.GetVal()
     except AttributeError:
-        # If GetVal() fails, try to handle it as a direct float (unlikely in your case)
         try:
             xsec = float(xsec_param)
         except (TypeError, ValueError):
@@ -79,7 +78,7 @@ def process_file(file_path, is_signal, hist, label):
             mumu_mass = (mu1 + mu2).M()
             weight = xsec / n_total
             hist.Fill(mumu_mass, weight)
-
+    print(f"{label}: the cross section is {xsec}")
     print(f"{label}: {n_passed} events passed selection out of {n_total}")
     f.Close()
 
@@ -87,19 +86,20 @@ def main():
     hist_sig = ROOT.TH1F("h_sig", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
     hist_bkg = ROOT.TH1F("h_bkg", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
 
-    process_file("zmm_signal.root", is_signal=True, hist=hist_sig, label="Signal")
-    process_file("ttbar_bkg.root", is_signal=False, hist=hist_bkg, label="Background")
+    process_file("../pythia8313/examples/homework/zmm_signal.root", is_signal=True, hist=hist_sig, label="Signal")
+    process_file("../pythia8313/examples/homework/ttbar_bkg.root", is_signal=False, hist=hist_bkg, label="Background")
 
     hist_total = hist_sig.Clone("h_total")
     hist_total.Add(hist_bkg)
 
     canvas = ROOT.TCanvas("c", "Invariant Mass", 800, 600)
     hist_sig.SetLineColor(ROOT.kRed)
+    hist_sig.SetLineStyle(10) # 10 dashed line to distinguish from total hist
     hist_sig.SetLineWidth(2)
     hist_bkg.SetLineColor(ROOT.kBlue)
     hist_bkg.SetLineWidth(2)
     hist_total.SetLineColor(ROOT.kBlack)
-    hist_total.SetLineStyle(2)  # 2 = dashed line style
+    hist_total.SetLineStyle(2)  # 2 = dashed line
     hist_total.SetLineWidth(2)
     
     hist_total.Draw("HIST")
