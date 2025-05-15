@@ -45,7 +45,7 @@ int main() {
   std::vector<float> mu_pt, mu_eta, mu_phi, mu_E;
   // muon charge and PDG ID for OS pair selection and MC truth checks
   std::vector<int> mu_charge;
-  std::vector<float> pi_pT, pi_eta, pi_phi;      // charged pions
+  std::vector<float> pi_pt, pi_eta, pi_phi;      // charged pions
 
   tree->Branch("mu_pt",&mu_pt);
   tree->Branch("mu_eta",&mu_eta);
@@ -53,7 +53,7 @@ int main() {
   tree->Branch("mu_E",&mu_E);
   tree->Branch("mu_charge", &mu_charge);
 
-  tree->Branch("pi_pT",  &pi_pT);
+  tree->Branch("pi_pt",  &pi_pt);
   tree->Branch("pi_eta", &pi_eta);
   tree->Branch("pi_phi", &pi_phi);
 
@@ -68,7 +68,7 @@ int main() {
     
         mu_pt.clear(); mu_eta.clear(); mu_phi.clear(); mu_E.clear();
         mu_charge.clear();
-        pi_pT.clear(); pi_eta.clear(); pi_phi.clear();
+        pi_pt.clear(); pi_eta.clear(); pi_phi.clear();
 
         int passHLTmu = 0;
     
@@ -90,7 +90,7 @@ int main() {
 
             // ---- store charged pions ----
             if (std::abs(p.id()) == 211) {
-                pi_pT .push_back(p.pT());
+                pi_pt .push_back(p.pT());
                 pi_eta.push_back(p.eta());
                 pi_phi.push_back(p.phi());
             }
@@ -106,12 +106,12 @@ int main() {
   // ------------------------------------------------------------------
   pythia.stat();
   // sigmaGen() returns cross-section in mb, convert to fb
-  Float_t xsec = pythia.info.sigmaGen() * 1e12;    // fb
-  Float_t weight   = xsec / tree->GetEntries(); // fb
+  Double_t xsec = pythia.info.sigmaGen() * 1e12;    // fb
+  Double_t weight   = xsec / tree->GetEntries(); // fb
   
   // store metadata
-  TParameter<float>("weight", weight).Write();
-  TParameter<float>("xsec",    xsec).Write();
+  TParameter<double>("weight", weight).Write();
+  TParameter<double>("xsec",    xsec).Write();
   
   std::cout << "signal : tried " << nTotal
             << ", kept " << tree->GetEntries()
