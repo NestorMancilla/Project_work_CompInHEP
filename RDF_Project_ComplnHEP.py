@@ -26,7 +26,12 @@ def get_xsec(file_path, is_signal):
             xsec = float(xsec_param)
         except (TypeError, ValueError):
             raise ValueError(f"File {file_path} has invalid 'xsec' type - neither TParameter nor float!")
-    
+    #if not is_signal: # the xsec from the background is not in fb
+        #xsec = xsec * 1e9 
+    if is_signal:
+        xsec = 62 * 1e3 # fb, numbers by Sami
+    else:
+        xsec = 924 * 1e3 # fb, numbers by Sami
     f.Close()
     return xsec
 
