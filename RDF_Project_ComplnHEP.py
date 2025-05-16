@@ -133,7 +133,7 @@ def main():
     timestamp = ROOT.TNamed(m, "")
     timestamp.Write()
 
-    # --- 2c) Gaussian + linear background fit and significance ---
+    # --- 2c) Gaussian + linear background fit and significance (with Voigtian) ---
     try:
         from array import array
         # Define fit range
@@ -161,22 +161,6 @@ def main():
 
         # Compute integrals in signal window [80,100]
         winMin, winMax = 80.0, 100.0
-        NB = fbkg.Integral(winMin, winMax)
-        fullInt = fGauss.Integral(winMin, winMax)
-        NS = fullInt - NB
-        signif = NS/np.sqrt(NB) if NB > 0 else 0.0
-        L_req = (5.0/signif)**2 if signif > 0 else 0.0
-        days = L_req/50.0*365.0 if signif > 0 else 0.0
-
-        # Print results
-        print(f"2c) Invariant mass window [{winMin},{winMax}] GeV")
-        print(f"  NS (fb): {NS}")
-        print(f"  NB (fb): {NB}")
-        print(f"  Significance @ 1 fb^-1: {signif} sigma")
-        print(f"  Required L for 5σ: {L_req} fb^-1 (~{days} days at 50 fb^-1/yr)")
-        # determine Gaussian+linear fit peak x-value
-        xPeak = fGauss.GetMaximumX(winMin, winMax)
-        print(f"  Fit peak x-value: {xPeak:.3f} GeV")
 
         # Draw and save combined plot
         c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
@@ -188,14 +172,52 @@ def main():
         hist_bkg.Draw("hist SAME")
         fGauss.Draw("same")
 
+        # Voigtian + linear background fit
+        fVoigt = ROOT.TF1("fVoigt",
+            "[0]*TMath::Voigt(x-[1],[2],[3]) + [4] + [5]*x",
+            fitMin, fitMax)
+        # initial parameters: norm, mean approx 91.15, sigma=2.5, gamma=2.5, background const and slope
+        fVoigt.SetParameters(
+            hist_total.GetMaximum(),  # normalization
+            91.15,                    # mean
+            2.5,                      # sigma (Gaussian width)
+            2.5,                      # gamma (Lorentzian width)
+            0.1 * hist_total.GetMaximum(),
+            0.0                       # linear slope
+        )
+        hist_total.Fit(fVoigt, "R+")
+        fVoigt.SetLineColor(ROOT.kGreen+2)
+        fVoigt.Draw("same")
+        # add Voigtian to legend
         legend = ROOT.TLegend(0.65, 0.75, 0.85, 0.85)
         legend.AddEntry(hist_sig, "Signal", "l")
         legend.AddEntry(hist_bkg, "Background", "l")
         legend.AddEntry(hist_total, "Total", "l")
         legend.AddEntry(fGauss, "Gaussian + linear", "l")
+        legend.AddEntry(fVoigt, "Voigtian + linear", "l")
         legend.SetBorderSize(0)
         legend.Draw()
 
+        # Compute integrals and significance for both fits
+        NB = fbkg.Integral(winMin, winMax)
+        fullIntGauss = fGauss.Integral(winMin, winMax)
+        NS_gauss = fullIntGauss - NB
+        signif_gauss = NS_gauss/np.sqrt(NB) if NB > 0 else 0.0
+        fullIntVoigt = fVoigt.Integral(winMin, winMax)
+        NS_voigt = fullIntVoigt - NB
+        signif_voigt = NS_voigt/np.sqrt(NB) if NB > 0 else 0.0
+
+        # Determine peak positions
+        xPeakGauss = fGauss.GetMaximumX(winMin, winMax)
+        xPeakVoigt = fVoigt.GetMaximumX(winMin, winMax)
+
+        # Print results for both fits
+        L_req = (5.0/signif_gauss)**2 if signif_gauss > 0 else 0.0
+        days = L_req/50.0*365.0 if signif_gauss > 0 else 0.0
+        print(f"2c) Invariant mass window [{winMin},{winMax}] GeV")
+        print(f"  Gaussian: NS={NS_gauss:.3f} fb, NB={NB:.3f} fb, significance={signif_gauss:.3f} sigma, peak={xPeakGauss:.3f} GeV")
+        print(f"  Voigtian: NS={NS_voigt:.3f} fb, NB={NB:.3f} fb, significance={signif_voigt:.3f} sigma, peak={xPeakVoigt:.3f} GeV")
+        
         c3.SaveAs("sum_and_fit.pdf")
     except Exception as e:
         print("2c block failed:", e)
