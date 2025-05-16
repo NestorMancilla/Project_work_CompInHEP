@@ -91,8 +91,8 @@ def main():
     hist_sig = ROOT.TH1F("h_sig", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
     hist_bkg = ROOT.TH1F("h_bkg", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
 
-    process_file("../pythia8313/examples/homework/zmm_signal.root", is_signal=True, hist=hist_sig, label="Signal")
-    process_file("../pythia8313/examples/homework/ttbar_bkg.root", is_signal=False, hist=hist_bkg, label="Background")
+    process_file("zmm_signal_10mil.root", is_signal=True, hist=hist_sig, label="Signal")
+    process_file("ttbar_bkg_10mil.root", is_signal=False, hist=hist_bkg, label="Background")
 
     hist_total = hist_sig.Clone("h_total")
     hist_total.Add(hist_bkg)
@@ -133,8 +133,74 @@ def main():
     timestamp = ROOT.TNamed(m, "")
     timestamp.Write()
 
+    # --- 2c) Gaussian + linear background fit and significance ---
+    try:
+        from array import array
+        # Define fit range
+        fitMin, fitMax = 60.0, 120.0
+        # Sideband background fit (pol1) outside [80,100]
+        fbkg = ROOT.TF1("fbkg", "pol1", fitMin, fitMax)
+        hist_total.Fit(fbkg, "R", "", fitMin, 80.0)
+        hist_total.Fit(fbkg, "R+", "", 100.0, fitMax)
+
+        # Gaussian + linear background fit
+        fGauss = ROOT.TF1("fGauss",
+            "[0]*TMath::Gaus(x,[1],[2]) + [3] + [4]*x",
+            fitMin, fitMax)
+        # initial parameters: amplitude, mean, sigma, background const, slope
+        fGauss.SetParameters(
+            hist_total.GetMaximum(),  # amplitude
+            91.15,                   # mean
+            2.5,                     # sigma
+            0.1*hist_total.GetMaximum(),
+            0.0                     # slope
+        )
+        hist_total.Fit(fGauss, "R+")
+        fGauss.SetLineColor(ROOT.kMagenta)
+        fGauss.Draw("same")
+
+        # Compute integrals in signal window [80,100]
+        winMin, winMax = 80.0, 100.0
+        NB = fbkg.Integral(winMin, winMax)
+        fullInt = fGauss.Integral(winMin, winMax)
+        NS = fullInt - NB
+        signif = NS/np.sqrt(NB) if NB > 0 else 0.0
+        L_req = (5.0/signif)**2 if signif > 0 else 0.0
+        days = L_req/50.0*365.0 if signif > 0 else 0.0
+
+        # Print results
+        print(f"2c) Invariant mass window [{winMin},{winMax}] GeV")
+        print(f"  NS (fb): {NS}")
+        print(f"  NB (fb): {NB}")
+        print(f"  Significance @ 1 fb^-1: {signif} sigma")
+        print(f"  Required L for 5σ: {L_req} fb^-1 (~{days} days at 50 fb^-1/yr)")
+        # determine Gaussian+linear fit peak x-value
+        xPeak = fGauss.GetMaximumX(winMin, winMax)
+        print(f"  Fit peak x-value: {xPeak:.3f} GeV")
+
+        # Draw and save combined plot
+        c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
+        hist_total.SetLineColor(ROOT.kBlack)
+        hist_sig.SetLineColor(ROOT.kRed)
+        hist_bkg.SetLineColor(ROOT.kBlue)
+        hist_total.Draw("hist")
+        hist_sig.Draw("hist SAME")
+        hist_bkg.Draw("hist SAME")
+        fGauss.Draw("same")
+
+        legend = ROOT.TLegend(0.65, 0.75, 0.85, 0.85)
+        legend.AddEntry(hist_sig, "Signal", "l")
+        legend.AddEntry(hist_bkg, "Background", "l")
+        legend.AddEntry(hist_total, "Total", "l")
+        legend.AddEntry(fGauss, "Gaussian + linear", "l")
+        legend.SetBorderSize(0)
+        legend.Draw()
+
+        c3.SaveAs("sum_and_fit.pdf")
+    except Exception as e:
+        print("2c block failed:", e)
+
     f_out.Close()
 
 if __name__ == "__main__":
     main()
-
