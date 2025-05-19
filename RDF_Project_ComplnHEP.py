@@ -7,6 +7,14 @@ import datetime
 ROOT.gROOT.SetBatch(True)
 ROOT.gRandom.SetSeed(42)
 
+# Declare C++ Voigt function for TF1
+ROOT.gInterpreter.Declare(r"""
+#include <TMath.h>
+double voigtfunc(double x, double mean, double sigma, double gamma) {
+    return TMath::Voigt(x - mean, sigma, gamma);
+}
+""")
+
 
 # cross section. Signal and background have different xsec format.
 def get_xsec(file_path, is_signal):
@@ -99,12 +107,12 @@ def main():
 
     canvas = ROOT.TCanvas("c", "Invariant Mass", 800, 600)
     hist_sig.SetLineColor(ROOT.kRed)
-    hist_sig.SetLineStyle(10) # 10 dashed line to distinguish from total hist
+    #hist_sig.SetLineStyle(10) # 10 dashed line to distinguish from total hist
     hist_sig.SetLineWidth(2)
     hist_bkg.SetLineColor(ROOT.kBlue)
     hist_bkg.SetLineWidth(2)
     hist_total.SetLineColor(ROOT.kBlack)
-    hist_total.SetLineStyle(2)  # 2 = dashed line
+    #hist_total.SetLineStyle(2)  # 2 = dashed line
     hist_total.SetLineWidth(2)
     
     hist_total.Draw("HIST")
@@ -156,7 +164,8 @@ def main():
             0.0                     # slope
         )
         hist_total.Fit(fGauss, "R+")
-        fGauss.SetLineColor(ROOT.kMagenta)
+        fGauss.SetLineWidth(2)
+        fGauss.SetLineColor(ROOT.kSpring-5)
         fGauss.Draw("same")
 
         # Compute integrals in signal window [80,100]
@@ -164,38 +173,64 @@ def main():
 
         # Draw and save combined plot
         c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
+        # disable stats box
+        ROOT.gStyle.SetOptStat(0)
         hist_total.SetLineColor(ROOT.kBlack)
-        hist_sig.SetLineColor(ROOT.kRed)
-        hist_bkg.SetLineColor(ROOT.kBlue)
+        hist_sig.SetLineColor(ROOT.kPink-2)
+        hist_bkg.SetLineColor(ROOT.kAzure+7)
         hist_total.Draw("hist")
         hist_sig.Draw("hist SAME")
         hist_bkg.Draw("hist SAME")
         fGauss.Draw("same")
 
-        # Voigtian + linear background fit
-        fVoigt = ROOT.TF1("fVoigt",
-            "[0]*TMath::Voigt(x-[1],[2],[3]) + [4] + [5]*x",
+        # Voigtian + linear background fit (for comparison)
+        fVoigtLin = ROOT.TF1("fVoigtLin",
+            "[0]*voigtfunc(x,[1],[2],[3]) + [4] + [5]*x",
             fitMin, fitMax)
-        # initial parameters: norm, mean approx 91.15, sigma=2.5, gamma=2.5, background const and slope
-        fVoigt.SetParameters(
+        # initial parameters: norm, mean, sigma, gamma, background const, slope
+        fVoigtLin.SetParameters(
             hist_total.GetMaximum(),  # normalization
             91.15,                    # mean
-            2.5,                      # sigma (Gaussian width)
-            2.5,                      # gamma (Lorentzian width)
-            0.1 * hist_total.GetMaximum(),
-            0.0                       # linear slope
+            2.5,                      # sigma
+            2.5,                      # gamma
+            0.1 * hist_total.GetMaximum(),  # background const
+            0.0                       # slope
+        )
+        hist_total.Fit(fVoigtLin, "R+")
+        fVoigtLin.SetLineWidth(2)
+        fVoigtLin.SetLineColor(ROOT.kOrange-3)
+        fVoigtLin.Draw("same")
+
+        # Voigtian + Chebyshev(1&2) background fit
+        cheb_arg = f"(2*(x - {fitMin})/({fitMax} - {fitMin}) - 1)"
+        fVoigt = ROOT.TF1("fVoigt",
+            f"[0]*voigtfunc(x,[1],[2],[3]) + [4] + [5]*{cheb_arg} + [6]*(2*({cheb_arg})*({cheb_arg}) - 1)",
+            fitMin, fitMax)
+        # initial parameters: norm, mean, sigma, gamma, const, Chebyshev1 coeff, Chebyshev2 coeff
+        fVoigt.SetParameters(
+            hist_total.GetMaximum(),      # normalization
+            91.15,                        # mean
+            2.5,                          # sigma (Gaussian width)
+            2.5,                          # gamma (Lorentzian width)
+            0.1 * hist_total.GetMaximum(),# background constant
+            0.0,                          # Chebyshev(1) coefficient (tilt)
+            0.0                           # Chebyshev(2) coefficient (curvature)
         )
         hist_total.Fit(fVoigt, "R+")
-        fVoigt.SetLineColor(ROOT.kGreen+2)
+        fVoigt.SetLineWidth(2)
+        fVoigt.SetLineColor(ROOT.kViolet-2)
         fVoigt.Draw("same")
+
         # add Voigtian to legend
-        legend = ROOT.TLegend(0.65, 0.75, 0.85, 0.85)
+        legend = ROOT.TLegend(0.58, 0.75-0.025*6, 0.85, 0.85)
         legend.AddEntry(hist_sig, "Signal", "l")
         legend.AddEntry(hist_bkg, "Background", "l")
         legend.AddEntry(hist_total, "Total", "l")
         legend.AddEntry(fGauss, "Gaussian + linear", "l")
-        legend.AddEntry(fVoigt, "Voigtian + linear", "l")
+        legend.AddEntry(fVoigtLin, "Voigtian + linear", "l")
+        legend.AddEntry(fVoigt, "Voigtian + Chebyshev(1&2)", "l")
         legend.SetBorderSize(0)
+        legend.SetTextSize(0.03)
         legend.Draw()
 
         # Compute integrals and significance for both fits
@@ -217,6 +252,13 @@ def main():
         print(f"2c) Invariant mass window [{winMin},{winMax}] GeV")
         print(f"  Gaussian: NS={NS_gauss:.3f} fb, NB={NB:.3f} fb, significance={signif_gauss:.3f} sigma, peak={xPeakGauss:.3f} GeV")
         print(f"  Voigtian: NS={NS_voigt:.3f} fb, NB={NB:.3f} fb, significance={signif_voigt:.3f} sigma, peak={xPeakVoigt:.3f} GeV")
+
+        # Voigtian + linear background fit stats
+        fullIntLin = fVoigtLin.Integral(winMin, winMax)
+        NS_lin = fullIntLin - NB
+        signif_lin = NS_lin/np.sqrt(NB) if NB > 0 else 0.0
+        xPeakLin = fVoigtLin.GetMaximumX(winMin, winMax)
+        print(f"  Voigtian+linear: NS={NS_lin:.3f} fb, NB={NB:.3f} fb, significance={signif_lin:.3f} sigma, peak={xPeakLin:.3f} GeV")
         
         c3.SaveAs("sum_and_fit.pdf")
     except Exception as e:
