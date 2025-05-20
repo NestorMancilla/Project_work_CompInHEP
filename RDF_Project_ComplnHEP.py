@@ -238,9 +238,15 @@ def main():
         fullIntGauss = fGauss.Integral(winMin, winMax)
         NS_gauss = fullIntGauss - NB
         signif_gauss = NS_gauss/np.sqrt(NB) if NB > 0 else 0.0
+
+        # build the pure Chebyshev background (Voigt amplitude set to 0)
+        fB_cheb = fVoigt.Clone("fB_cheb")   # copy the whole function
+        fB_cheb.SetParameter(0, 0.0)        # zero the Voigtian amplitude
+
+        NB_cheb = fB_cheb.Integral(winMin, winMax)
         fullIntVoigt = fVoigt.Integral(winMin, winMax)
-        NS_voigt = fullIntVoigt - NB
-        signif_voigt = NS_voigt/np.sqrt(NB) if NB > 0 else 0.0
+        NS_voigt = fullIntVoigt - NB_cheb
+        signif_voigt = NS_voigt/np.sqrt(NB_cheb) if NB_cheb > 0 else 0.0
 
         # Determine peak positions
         xPeakGauss = fGauss.GetMaximumX(winMin, winMax)
@@ -251,7 +257,7 @@ def main():
         days = L_req/50.0*365.0 if signif_gauss > 0 else 0.0
         print(f"2c) Invariant mass window [{winMin},{winMax}] GeV")
         print(f"  Gaussian: NS={NS_gauss:.3f} fb, NB={NB:.3f} fb, significance={signif_gauss:.3f} sigma, peak={xPeakGauss:.3f} GeV")
-        print(f"  Voigtian: NS={NS_voigt:.3f} fb, NB={NB:.3f} fb, significance={signif_voigt:.3f} sigma, peak={xPeakVoigt:.3f} GeV")
+        print(f"  Voigtian: NS={NS_voigt:.3f} fb, NB={NB_cheb:.3f} fb, significance={signif_voigt:.3f} sigma, peak={xPeakVoigt:.3f} GeV")
 
         # Voigtian + linear background fit stats
         fullIntLin = fVoigtLin.Integral(winMin, winMax)
