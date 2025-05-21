@@ -63,7 +63,7 @@ def is_isolated(mu_eta, mu_phi, pi_pts, pi_etas, pi_phis):
             sum_pi_pt += pi_pt
     return sum_pi_pt < 1.5
 
-def process_file(file_path, is_signal, hist, label):
+def process_file(file_path, is_signal, hist, hist_preselection, label):
     xsec = get_xsec(file_path, is_signal)
     f = ROOT.TFile.Open(file_path)
     tree = f.Get("Events")
@@ -71,6 +71,16 @@ def process_file(file_path, is_signal, hist, label):
     n_total = tree.GetEntries()
 
     for event in tree:
+        # Fill the preselection histogram, histogram before event selection.
+        if len(event.mu_pt) >= 2 and event.mu_charge[0] * event.mu_charge[1] < 0:
+            mu1 = ROOT.TLorentzVector()
+            mu2 = ROOT.TLorentzVector()
+            mu1.SetPtEtaPhiE(event.mu_pt[0], event.mu_eta[0], event.mu_phi[0], event.mu_E[0])
+            mu2.SetPtEtaPhiE(event.mu_pt[1], event.mu_eta[1], event.mu_phi[1], event.mu_E[1])
+            mumu_mass = (mu1 + mu2).M()
+            weight = xsec / n_total
+            hist_preselection.Fill(mumu_mass, weight)
+
         mu_pts, mu_etas, mu_phis, mu_Es = [], [], [], []
 
         for i in range(len(event.mu_pt)):
@@ -98,21 +108,25 @@ def process_file(file_path, is_signal, hist, label):
 def main():
     hist_sig = ROOT.TH1F("h_sig", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
     hist_bkg = ROOT.TH1F("h_bkg", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
+    hist_sig_preselection = ROOT.TH1F("h_sig_preselection", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
+    hist_bkg_preselection = ROOT.TH1F("h_bkg_preselection", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
 
-    process_file("zmm_signal_10mil.root", is_signal=True, hist=hist_sig, label="Signal")
-    process_file("ttbar_bkg_10mil.root", is_signal=False, hist=hist_bkg, label="Background")
+    process_file("zmm_signal_10mil.root", is_signal=True, hist=hist_sig, hist_preselection=hist_sig_preselection, label="Signal")
+    process_file("ttbar_bkg_10mil.root", is_signal=False, hist=hist_bkg, hist_preselection=hist_bkg_preselection, label="Background")
 
     hist_total = hist_sig.Clone("h_total")
     hist_total.Add(hist_bkg)
+    hist_total_preselection = hist_sig_preselection.Clone("h_total_preselection")
+    hist_total_preselection.Add(hist_bkg_preselection)
 
+    # Plot after selection
     canvas = ROOT.TCanvas("c", "Invariant Mass", 800, 600)
-    hist_sig.SetLineColor(ROOT.kRed)
-    #hist_sig.SetLineStyle(10) # 10 dashed line to distinguish from total hist
+    ROOT.gStyle.SetOptStat(0) # To remove it for all the histograms.
+    hist_sig.SetLineColor(ROOT.kPink-2)
     hist_sig.SetLineWidth(2)
-    hist_bkg.SetLineColor(ROOT.kBlue)
+    hist_bkg.SetLineColor(ROOT.kAzure+7)
     hist_bkg.SetLineWidth(2)
     hist_total.SetLineColor(ROOT.kBlack)
-    #hist_total.SetLineStyle(2)  # 2 = dashed line
     hist_total.SetLineWidth(2)
     
     hist_total.Draw("HIST")
@@ -129,10 +143,37 @@ def main():
     canvas.SaveAs("Invariant_mumu_mass.pdf")
     canvas.SaveAs("Invariant_mumu_mass.png")
 
+    # Plot before selection
+    canvas_preselection = ROOT.TCanvas("c_preselection", "Invariant Mass (before selection)", 800, 600)
+    hist_sig_preselection.SetLineColor(ROOT.kPink-2)
+    hist_sig_preselection.SetLineWidth(2)
+    hist_bkg_preselection.SetLineColor(ROOT.kAzure+7)
+    hist_bkg_preselection.SetLineWidth(2)
+    hist_total_preselection.SetLineColor(ROOT.kBlack)
+    hist_total_preselection.SetLineWidth(2)
+    
+    hist_total_preselection.GetYaxis().SetTitleOffset(1.4) 
+    hist_total_preselection.Draw("HIST")
+    hist_sig_preselection.Draw("HIST SAME")
+    hist_bkg_preselection.Draw("HIST SAME")
+    
+    legend_preselection = ROOT.TLegend(0.65, 0.75, 0.85, 0.85)
+    legend_preselection.AddEntry(hist_sig_preselection, "Signal", "l")
+    legend_preselection.AddEntry(hist_bkg_preselection, "Background", "l")
+    legend_preselection.AddEntry(hist_total_preselection, "Total", "l")
+    legend_preselection.SetBorderSize(0)
+    legend_preselection.Draw()
+
+    canvas_preselection.SaveAs("Invariant_mumu_mass_preselection.pdf")
+    canvas_preselection.SaveAs("Invariant_mumu_mass_preselection.png")
+
     f_out = ROOT.TFile("output.root", "RECREATE")
     hist_sig.Write()
     hist_bkg.Write()
     hist_total.Write()
+    hist_sig_preselection.Write()
+    hist_bkg_preselection.Write()
+    hist_total_preselection.Write()
 
     # timestamp
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -141,7 +182,7 @@ def main():
     timestamp = ROOT.TNamed(m, "")
     timestamp.Write()
 
-    # --- 2c) Gaussian + linear background fit and significance (with Voigtian) ---
+    # 2c) Different fits and significance
     try:
         from array import array
         # Define fit range
@@ -171,10 +212,8 @@ def main():
         # Compute integrals in signal window [80,100]
         winMin, winMax = 80.0, 100.0
 
-        # Draw and save combined plot
         c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
-        # disable stats box
-        ROOT.gStyle.SetOptStat(0)
+        #ROOT.gStyle.SetOptStat(0)
         hist_total.SetLineColor(ROOT.kBlack)
         hist_sig.SetLineColor(ROOT.kPink-2)
         hist_bkg.SetLineColor(ROOT.kAzure+7)
@@ -183,7 +222,7 @@ def main():
         hist_bkg.Draw("hist SAME")
         fGauss.Draw("same")
 
-        # Voigtian + linear background fit (for comparison)
+        # Voigtian + linear background fit
         fVoigtLin = ROOT.TF1("fVoigtLin",
             "[0]*voigtfunc(x,[1],[2],[3]) + [4] + [5]*x",
             fitMin, fitMax)
@@ -221,7 +260,6 @@ def main():
         fVoigt.SetLineColor(ROOT.kViolet-2)
         fVoigt.Draw("same")
 
-        # add Voigtian to legend
         legend = ROOT.TLegend(0.58, 0.75-0.025*6, 0.85, 0.85)
         legend.AddEntry(hist_sig, "Signal", "l")
         legend.AddEntry(hist_bkg, "Background", "l")
