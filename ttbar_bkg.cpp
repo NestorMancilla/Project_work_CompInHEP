@@ -13,19 +13,17 @@ int main() {
   // ------------------------------------------------------------------
   // 1.  PYTHIA configuration
   // ------------------------------------------------------------------
-
+  
   Pythia pythia;
 
   // ---------- beam & tune ----------
-  pythia.readString("Beams:idA = 2212");             // proton
+  pythia.readString("Beams:idA = 2212");              // proton
   pythia.readString("Beams:idB = 2212");             // proton
   pythia.readString("Beams:eCM = 13600.");           // 13.6 TeV
 
   // ---------- physics process ----------
-  pythia.readString("WeakSingleBoson:ffbar2gmZ = on");
-
-  pythia.readString("23:onMode = off");
-  pythia.readString("23:onIfMatch = 13 -13");        // Z → μ+ μ–
+  pythia.readString("Top:gg2ttbar   = on");
+  pythia.readString("Top:qqbar2ttbar = on");
 
   // ---------- initialise ----------
   pythia.init();
@@ -37,9 +35,9 @@ int main() {
   // ------------------------------------------------------------------
   // 2.  ROOT file / tree setup
   // ------------------------------------------------------------------
-  TFile *f = new TFile("zmm_signal.root", "RECREATE");
-  TTree *tree = new TTree("Events", "PYTHIA8 Z->mumu events");
-  
+  TFile *f = new TFile("ttbar_bkg_10mil.root","RECREATE");
+  TTree *tree = new TTree("Events","t tbar → μμ background");
+
   // ---------- Variables to store in TTree ----------
 
   // scalars
@@ -66,17 +64,17 @@ int main() {
   // 3.  Event loop
   // ------------------------------------------------------------------
 
-  const int nTotal = 1000000; //10 000 000
-
+  const int nTotal = 10000000;          // events to TRY
+  
   for (int iEvent = 0; iEvent < nTotal; ++iEvent) {
     if (!pythia.next()) continue;
-  
+
     mu_pt.clear(); mu_eta.clear(); mu_phi.clear(); mu_E.clear();
     mu_charge.clear();
     pi_pt.clear(); pi_eta.clear(); pi_phi.clear();
 
     int passHLTmu = 0;
-  
+
     for (int i = 0; i < pythia.event.size(); ++i) {
       const Particle& p = pythia.event[i];
       if (!p.isFinal()) continue;
@@ -101,9 +99,9 @@ int main() {
         }
       }
     }
-      if (passHLTmu >= 2) {          // ≥2 muons pass HLT → keep event
-        tree->Fill();
-      }
+    if (passHLTmu >= 2) {          // ≥2 muons pass HLT → keep event
+      tree->Fill();
+    }
   }
 
   // ------------------------------------------------------------------
@@ -118,7 +116,7 @@ int main() {
   TParameter<double>("weight", weight).Write();
   TParameter<double>("xsec",    xsec).Write();
   
-  std::cout << "signal : tried " << nTotal
+  std::cout << "ttbar : tried " << nTotal
             << ", kept " << tree->GetEntries()
             << ", xsec = " << xsec << " fb\n";
   
