@@ -213,11 +213,7 @@ def main():
         winMin, winMax = 80.0, 100.0
 
         c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
-<<<<<<< HEAD
         #ROOT.gStyle.SetOptStat(0)
-=======
-        ROOT.gStyle.SetOptStat(0)
->>>>>>> 573338793eef1137d5e91af4cb625996051b4a8b
         hist_total.SetLineColor(ROOT.kBlack)
         hist_sig.SetLineColor(ROOT.kPink-2)
         hist_bkg.SetLineColor(ROOT.kAzure+7)
