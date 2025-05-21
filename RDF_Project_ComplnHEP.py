@@ -141,7 +141,7 @@ def main():
     timestamp = ROOT.TNamed(m, "")
     timestamp.Write()
 
-    # --- 2c) Gaussian + linear background fit and significance (with Voigtian) ---
+    # 2c) Different fits and significance
     try:
         from array import array
         # Define fit range
@@ -171,9 +171,7 @@ def main():
         # Compute integrals in signal window [80,100]
         winMin, winMax = 80.0, 100.0
 
-        # Draw and save combined plot
         c3 = ROOT.TCanvas("c3", "Normalized invariant mass", 800, 600)
-        # disable stats box
         ROOT.gStyle.SetOptStat(0)
         hist_total.SetLineColor(ROOT.kBlack)
         hist_sig.SetLineColor(ROOT.kPink-2)
@@ -183,7 +181,7 @@ def main():
         hist_bkg.Draw("hist SAME")
         fGauss.Draw("same")
 
-        # Voigtian + linear background fit (for comparison)
+        # Voigtian + linear background fit
         fVoigtLin = ROOT.TF1("fVoigtLin",
             "[0]*voigtfunc(x,[1],[2],[3]) + [4] + [5]*x",
             fitMin, fitMax)
@@ -221,7 +219,6 @@ def main():
         fVoigt.SetLineColor(ROOT.kViolet-2)
         fVoigt.Draw("same")
 
-        # add Voigtian to legend
         legend = ROOT.TLegend(0.58, 0.75-0.025*6, 0.85, 0.85)
         legend.AddEntry(hist_sig, "Signal", "l")
         legend.AddEntry(hist_bkg, "Background", "l")
