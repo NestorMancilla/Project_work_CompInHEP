@@ -99,8 +99,8 @@ def main():
     hist_sig = ROOT.TH1F("h_sig", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
     hist_bkg = ROOT.TH1F("h_bkg", "Invariant Mass;M_{#mu#mu} [GeV];Events (fb)", 100, 60, 120)
 
-    process_file("../pythia8313/examples/homework/zmm_signal.root", is_signal=True, hist=hist_sig, label="Signal")
-    process_file("../pythia8313/examples/homework/ttbar_bkg.root", is_signal=False, hist=hist_bkg, label="Background")
+    process_file("zmm_signal_10mil.root", is_signal=True, hist=hist_sig, label="Signal")
+    process_file("ttbar_bkg_10mil.root", is_signal=False, hist=hist_bkg, label="Background")
 
     hist_total = hist_sig.Clone("h_total")
     hist_total.Add(hist_bkg)
